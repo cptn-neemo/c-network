@@ -1,2 +1,2 @@
 server: server.c
-	gcc -o server server.c lib.c -Wall -Werror
+	gcc -o server server.c lib.c -Wall -Werror -pthread -g
