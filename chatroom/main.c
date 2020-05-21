@@ -7,6 +7,8 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <poll.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "serverlib.h"
 
@@ -22,57 +24,53 @@ int main() {
         return 1;
     }
 
-    printf("Listening on port %s\n", PORT);
+    nfds = expand_pfds(&pfds, nfds, sockfd);
 
     int sockpeer;
     struct sockaddr_in peeraddr;
     socklen_t peer_addr_size = sizeof (struct sockaddr);
 
+    char buffer[1000] = {0};
+
     int numevents;
     while (1) {
-        if ((sockpeer = accept(sockfd, (struct sockaddr *) &peeraddr, &peer_addr_size)) == -1) {
-            continue;
-        }
+        //char *peeraddr_str = inet_ntoa(peeraddr.sin_addr);
+        //printf("Got a connection from: %s\n", peeraddr_str);
 
-        char *peeraddr_str = inet_ntoa(peeraddr.sin_addr);
-        printf("Got a connection from: %s\n", peeraddr_str);
+        //nfds = expand_pfds(&pfds, nfds, sockpeer);
 
-        // TODO: Add this client's sockfd to the array
-        // TODO: Go into the poll block, then send out the data
+        //printf("Number fds: %d\n", nfds);
 
-        //send(sockpeer, message, strlen(message), 0);
-        //shutdown(sockpeer, 2);
-
-        nfds = expand_pfds(&pfds, nfds);
-        pfds[nfds - 1].fd = sockpeer;
-        pfds[nfds - 1].events = POLLIN;
-
-        printf("Number fds: %d\n", nfds);
-
-        if ((numevents = poll(pfds, nfds, 10)) > 0) {
-            // TODO: There has been an input
-            
-            printf("something happened\n");
+        if ((numevents = poll(pfds, nfds, 1000)) > 0) {
             for (int i = 0; i < nfds; i++) {
-                if (pfds[i].revents & POLLIN) {
-                    printf("Something to send!\n");
+                if ((pfds[i].revents & POLLIN) && (pfds[i].fd == sockfd)) {
+                    sockpeer = accept(sockfd, (struct sockaddr *) &peeraddr, &peer_addr_size);
+
+                    char *peeraddr_str = inet_ntoa(peeraddr.sin_addr);
+                    printf("Got a connection from: %s\n", peeraddr_str);
+
+                    nfds = expand_pfds(&pfds, nfds, sockpeer);
+                } else if (pfds[i].revents & POLLIN) {
+                    int size = recv(pfds[i].fd, buffer, 1000, 0);
+                    if (size > 0) {
+                        broadcast(pfds, nfds, buffer, size, pfds[i].fd, sockfd);
+                    } else if (size == 0) {
+                        // Need to close this connection
+                        printf("Closing connection: %d\n", pfds[i].fd);
+                        close(pfds[i].fd);
+                        nfds = delete_pfd(&pfds, nfds, i);
+                    } else {
+                        printf("recv error code: %d\n", errno);
+                    }
                 }
             }
         } else if (numevents == 0) {
             // There has been a timeout
-            printf("timeout\n");
         } else {
             printf("Poll error code: %d\n", errno);
             exit(1);
         }
-
-        //if (nfds == 5) {
-        //    for (int i = 0; i < nfds; i++) {
-        //        send(pfds[i].fd, message, strlen(message), 0);
-        //    }
-        //}
     }
-
 
     return 0;
 }

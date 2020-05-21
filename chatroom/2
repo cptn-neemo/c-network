@@ -85,12 +85,6 @@ int expand_pfds(struct pollfd **pfds, int cursize, int fd) {
     return cursize + 1;
 }
 
-int delete_pfd(struct pollfd **pfds, int nfds, int index) {
-    (*pfds)[index] = (*pfds)[nfds - 1];
-    *pfds = realloc(*pfds, (nfds - 1) * sizeof(struct pollfd));
-    return nfds - 1;
-}
-
 void broadcast(struct pollfd *pfds, size_t nfds, void *buf, size_t len, int infd, int sfd) {
     int status;
     for (int i = 0; i < nfds; i++) {
